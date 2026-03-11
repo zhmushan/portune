@@ -6,8 +6,9 @@ import {
   type AppBindings,
   type AuthSession,
 } from './types.js'
+import { loadLocalEnvFileIfPresent } from './env.js'
 
-process.loadEnvFile?.('.env.local')
+loadLocalEnvFileIfPresent()
 
 type BetterAuthSessionResponse = {
   session?: Record<string, unknown>

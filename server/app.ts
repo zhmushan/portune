@@ -5,11 +5,12 @@ import {
   handleBetterAuthRequest,
   requireAuthenticatedSession,
 } from './auth.js'
+import { loadLocalEnvFileIfPresent } from './env.js'
 import { portfolioApp } from './routes/portfolio.js'
 import { handleSessionRequest, sessionApp } from './routes/session.js'
 import type { AppBindings } from './types.js'
 
-process.loadEnvFile?.('.env.local')
+loadLocalEnvFileIfPresent()
 
 const app = new Hono<AppBindings>()
 

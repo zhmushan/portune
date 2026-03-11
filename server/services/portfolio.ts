@@ -94,7 +94,7 @@ export async function analyzePortfolio(
         weight: roundTo(weight, 6),
       }
     })
-    .toSorted((left, right) => right.marketValue - left.marketValue)
+    .sort((left, right) => right.marketValue - left.marketValue)
 
   if (currencies.size > 1) {
     warnings.push('Mixed currencies detected. Portfolio metrics assume USD pricing.')
