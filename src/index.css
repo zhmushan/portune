@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --font-display: "Georgia", "Times New Roman", serif;
+  --font-mono: "SFMono-Regular", "SF Mono", "Roboto Mono", "Menlo", "Consolas", monospace;
+
+  --color-panel: rgba(255, 252, 247, 0.88);
+  --color-panel-border: rgba(38, 56, 69, 0.12);
+  --color-ink: #142330;
+  --color-muted: #5d6e78;
+  --color-brand: #0f5a5f;
+  --color-brand-strong: #0c4448;
+  --color-danger: #a23b2a;
+  --color-warning: #8b5b16;
+
+  --shadow-panel: 0 24px 70px rgba(24, 36, 41, 0.12);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(15, 90, 95, 0.18), transparent 28%),
+      radial-gradient(circle at top right, rgba(171, 120, 44, 0.16), transparent 22%),
+      linear-gradient(180deg, #f4efe4 0%, #dfeaf0 100%);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    margin: 0;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  code {
+    padding: 0.14rem 0.36rem;
+    border-radius: 0.5rem;
+    background: rgba(20, 35, 48, 0.08);
+    font-family: var(--font-mono);
+  }
+}
