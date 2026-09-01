@@ -5,6 +5,7 @@ import { analyzePortfolio } from './api/client'
 import { ApiError } from './api/http'
 import { AuthenticationPanel } from './features/auth/components/AuthenticationPanel'
 import { LedgerPanel } from './features/ledger/components/LedgerPanel'
+import { NetWorthPanel } from './features/networth/components/NetWorthPanel'
 import type { AuthenticatedUser } from './features/auth/types'
 import { CopyPortfolioButton } from './features/portfolio/components/CopyPortfolioButton'
 import { DisplaySettingsPanel } from './features/portfolio/components/DisplaySettingsPanel'
@@ -138,6 +139,8 @@ export default function App() {
   const [analysisState, setAnalysisState] =
     useState<AnalysisState>(initialAnalysisState)
   const [authState, setAuthState] = useState<AuthState>(initialAuthState)
+  // Bumped whenever the ledger changes so the net worth curve recomputes.
+  const [ledgerRevision, setLedgerRevision] = useState(0)
   const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle')
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -886,8 +889,12 @@ export default function App() {
       ) : null}
 
       {isWorkspaceReady ? (
-        <main className="mt-5">
-          <LedgerPanel />
+        <main className="mt-5 flex flex-col gap-5">
+          <NetWorthPanel
+            isPrivacyMode={isPrivacyMode}
+            refreshToken={ledgerRevision}
+          />
+          <LedgerPanel onChanged={() => setLedgerRevision((n) => n + 1)} />
         </main>
       ) : null}
     </div>

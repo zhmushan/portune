@@ -24,13 +24,18 @@ type Notice = {
   tone: 'error' | 'info' | 'success'
 }
 
+type LedgerPanelProps = {
+  /** Called after any change lands, so the net worth curve can recompute. */
+  onChanged: () => void
+}
+
 const noticeToneClass: Record<Notice['tone'], string> = {
   error: 'bg-rose-500/10 text-rose-700',
   info: 'bg-brand/10 text-brand-strong',
   success: 'bg-emerald-500/10 text-emerald-700',
 }
 
-export function LedgerPanel() {
+export function LedgerPanel({ onChanged }: LedgerPanelProps) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editing, setEditing] = useState<LedgerEntry | null>(null)
@@ -104,6 +109,8 @@ export function LedgerPanel() {
         setEntries((previous) => [...previous, created])
         setNotice({ text: '已添加记录。', tone: 'success' })
       }
+
+      onChanged()
     } catch (error) {
       reportError(error, '保存失败。')
     } finally {
@@ -131,6 +138,7 @@ export function LedgerPanel() {
       }
 
       setNotice({ text: '已删除。', tone: 'success' })
+      onChanged()
     } catch (error) {
       reportError(error, '删除失败。')
     } finally {

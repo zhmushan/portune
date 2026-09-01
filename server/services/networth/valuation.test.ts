@@ -107,10 +107,26 @@ describe('valueStates', () => {
       new Map([['F161128', QDII]]),
     )
 
-    // 3500 × ¥2 = ¥7,000 of market value, which is $1,000 of USD exposure.
+    // 3500 × ¥2 = ¥7,000 of market value, all of it USD exposure.
     expect(points[0]?.totalCny).toBe(7000)
-    expect(points[0]?.exposure.USD).toBe(1000)
+    expect(points[0]?.exposure.USD).toBe(7000)
     expect(points[0]?.exposure.CNY ?? 0).toBe(0)
+  })
+
+  /**
+   * Exposure has to share one unit. Reporting CNY cash in yuan next to USD
+   * holdings in dollars made a real portfolio's dollar share read as 4% when it
+   * was 24% — the FX rate silently became a weighting factor.
+   */
+  it('states every exposure bucket in the same currency', () => {
+    const states = new Map([
+      ['2026-01-01', stateWith([['VOO', 2]], [['cmb', 'CNY', 7000]])],
+    ])
+    const { points } = valueStates(states, DATES, book(), new Map([['VOO', VOO]]))
+
+    // ¥7,000 cash and 2 × $500 = $1,000 → ¥7,000 of USD exposure: an even split.
+    expect(points[0]?.exposure.CNY).toBe(7000)
+    expect(points[0]?.exposure.USD).toBe(7000)
   })
 
   it('warns instead of silently dropping an unpriced symbol', () => {

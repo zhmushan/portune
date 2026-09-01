@@ -6,7 +6,13 @@ import { lookupForwardFilled, sortedKeys } from './prices.js'
 export type ValuationPoint = {
   cash: Record<string, number>
   date: string
-  /** Market value by risk currency — QDII counts as USD exposure, not CNY. */
+  /**
+   * Market value by risk currency — QDII counts as USD exposure, not CNY.
+   *
+   * Values are expressed in CNY so the shares are comparable: mixing native
+   * units would compare ¥254,000 against $11,706 and report the dollar share as
+   * 4% when it is really 24%.
+   */
   exposure: Record<string, number>
   holdings: Record<string, number>
   totalCny: number
@@ -119,7 +125,12 @@ export function valueStates(
     for (const [, byCurrency] of state.cash) {
       for (const [currency, amount] of byCurrency) {
         cash[currency] = (cash[currency] ?? 0) + amount
-        exposure[currency] = (exposure[currency] ?? 0) + amount
+
+        const exposureInCny = convert(amount, currency, 'CNY', date, fx)
+
+        if (exposureInCny !== null) {
+          exposure[currency] = (exposure[currency] ?? 0) + exposureInCny
+        }
 
         for (const base of BASE_CURRENCIES) {
           const converted = convert(amount, currency, base, date, fx)
@@ -155,19 +166,14 @@ export function valueStates(
       holdings[symbol] = (holdings[symbol] ?? 0) + marketValue
 
       // Exposure follows the instrument's underlying risk, not its quote
-      // currency: a QDII fund priced in CNY still carries USD risk.
+      // currency: a QDII fund priced in CNY still carries USD risk. The value
+      // is normalized to CNY so shares across currencies are comparable.
       const riskCurrency =
         instruments.get(symbol)?.riskCurrency || priceCurrency
-      const exposureValue = convert(
-        marketValue,
-        priceCurrency,
-        riskCurrency,
-        date,
-        fx,
-      )
+      const exposureInCny = convert(marketValue, priceCurrency, 'CNY', date, fx)
 
-      if (exposureValue !== null) {
-        exposure[riskCurrency] = (exposure[riskCurrency] ?? 0) + exposureValue
+      if (exposureInCny !== null) {
+        exposure[riskCurrency] = (exposure[riskCurrency] ?? 0) + exposureInCny
       }
 
       for (const base of BASE_CURRENCIES) {
