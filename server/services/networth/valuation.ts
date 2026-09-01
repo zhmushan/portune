@@ -4,6 +4,8 @@ import type { PriceBook } from './prices.js'
 import { lookupForwardFilled, sortedKeys } from './prices.js'
 
 export type ValuationPoint = {
+  /** Market value by asset class, in CNY. Cash is its own class. */
+  assetClasses: Record<string, number>
   cash: Record<string, number>
   date: string
   /**
@@ -117,6 +119,7 @@ export function valueStates(
       continue
     }
 
+    const assetClasses: Record<string, number> = {}
     const cash: Record<string, number> = {}
     const exposure: Record<string, number> = {}
     const holdings: Record<string, number> = {}
@@ -130,6 +133,7 @@ export function valueStates(
 
         if (exposureInCny !== null) {
           exposure[currency] = (exposure[currency] ?? 0) + exposureInCny
+          assetClasses.cash = (assetClasses.cash ?? 0) + exposureInCny
         }
 
         for (const base of BASE_CURRENCIES) {
@@ -174,6 +178,10 @@ export function valueStates(
 
       if (exposureInCny !== null) {
         exposure[riskCurrency] = (exposure[riskCurrency] ?? 0) + exposureInCny
+
+        const assetClass = instruments.get(symbol)?.assetClass ?? 'equity'
+
+        assetClasses[assetClass] = (assetClasses[assetClass] ?? 0) + exposureInCny
       }
 
       for (const base of BASE_CURRENCIES) {
@@ -189,6 +197,7 @@ export function valueStates(
     }
 
     points.push({
+      assetClasses,
       cash,
       date,
       exposure,

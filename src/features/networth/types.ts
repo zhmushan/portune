@@ -1,10 +1,17 @@
 export type ValuationPoint = {
+  assetClasses: Record<string, number>
   cash: Record<string, number>
   date: string
   exposure: Record<string, number>
   holdings: Record<string, number>
   totalCny: number
   totalUsd: number
+}
+
+export const ASSET_CLASS_LABELS: Record<string, string> = {
+  cash: '现金',
+  equity: '股票 / ETF',
+  fund: '基金',
 }
 
 export type ReturnSummary = {

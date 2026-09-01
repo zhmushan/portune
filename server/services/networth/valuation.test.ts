@@ -129,6 +129,37 @@ describe('valueStates', () => {
     expect(points[0]?.exposure.USD).toBe(7000)
   })
 
+  it('splits value by asset class with cash as its own bucket', () => {
+    const states = new Map([
+      [
+        '2026-01-01',
+        stateWith(
+          [
+            ['VOO', 2],
+            ['F161128', 3500],
+          ],
+          [['cmb', 'CNY', 7000]],
+        ),
+      ],
+    ])
+    const { points } = valueStates(
+      states,
+      DATES,
+      book(),
+      new Map([
+        ['F161128', QDII],
+        ['VOO', VOO],
+      ]),
+    )
+
+    // ¥7,000 cash, 2 × $500 → ¥7,000 equity, 3500 × ¥2 = ¥7,000 fund.
+    expect(points[0]?.assetClasses).toEqual({
+      cash: 7000,
+      equity: 7000,
+      fund: 7000,
+    })
+  })
+
   it('warns instead of silently dropping an unpriced symbol', () => {
     const states = new Map([['2026-01-01', stateWith([['UNKNOWN', 10]], [])]])
     const { points, warnings } = valueStates(states, DATES, book(), new Map())

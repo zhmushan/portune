@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { BreakdownBar } from './BreakdownBar'
 import { NetWorthChart } from './NetWorthChart'
-import { RANGE_OPTIONS, sliceByRange, summarize } from '../types'
+import { ASSET_CLASS_LABELS, RANGE_OPTIONS, sliceByRange, summarize } from '../types'
 import type { BaseCurrency, NetWorthSeries, RangeDays } from '../types'
 import { fetchNetWorthSeries } from '../../../api/networth'
 import {
-  badgeClass,
   cn,
   eyebrowClass,
   ghostButtonClass,
@@ -32,23 +32,14 @@ function formatMoney(value: number, base: BaseCurrency) {
   }).format(value)
 }
 
-function formatExposure(exposure: Record<string, number>) {
-  const entries = Object.entries(exposure).filter(
-    ([, value]) => Math.abs(value) > 1,
-  )
-  const total = entries.reduce((sum, [, value]) => sum + Math.abs(value), 0)
-
-  if (total === 0) {
-    return []
-  }
-
-  return entries
-    .map(([currency, value]) => ({
-      currency,
-      share: Math.abs(value) / total,
-      value,
-    }))
-    .toSorted((left, right) => right.share - left.share)
+function toBreakdownItems(
+  values: Record<string, number>,
+  labels?: Record<string, string>,
+) {
+  return Object.entries(values).map(([key, value]) => ({
+    label: labels?.[key] ?? key,
+    value,
+  }))
 }
 
 export function NetWorthPanel({
@@ -84,7 +75,11 @@ export function NetWorthPanel({
   )
   const stats = useMemo(() => summarize(visible, base), [base, visible])
   const exposure = useMemo(
-    () => formatExposure(visible.at(-1)?.exposure ?? {}),
+    () => toBreakdownItems(visible.at(-1)?.exposure ?? {}),
+    [visible],
+  )
+  const assetClasses = useMemo(
+    () => toBreakdownItems(visible.at(-1)?.assetClasses ?? {}, ASSET_CLASS_LABELS),
     [visible],
   )
 
@@ -209,22 +204,24 @@ export function NetWorthPanel({
             />
           </div>
 
-          {exposure.length > 0 ? (
-            <div className="mt-5 flex flex-wrap gap-2">
-              {exposure.map((item) => (
-                <span className={badgeClass} key={item.currency}>
-                  {item.currency} {(item.share * 100).toFixed(0)}%
-                </span>
-              ))}
-              <span className="self-center text-[0.8rem] text-muted">
-                按底层风险敞口划分，QDII 计入其投资标的的币种
-              </span>
+          {exposure.length > 0 || assetClasses.length > 0 ? (
+            <div className="mt-6 grid gap-5 min-[860px]:grid-cols-2">
+              <BreakdownBar
+                isPrivacyMode={isPrivacyMode}
+                items={exposure}
+                title="币种敞口"
+              />
+              <BreakdownBar
+                isPrivacyMode={isPrivacyMode}
+                items={assetClasses}
+                title="资产类别"
+              />
             </div>
           ) : null}
 
           <p className="mt-4 text-[0.8rem] leading-6 text-muted">
-            基金净值披露滞后一到两个交易日，所以最近一两天的 QDII
-            使用最新已披露净值。
+            敞口按底层风险划分并统一折算为人民币，QDII 计入其投资标的的币种。
+            基金净值披露滞后一到两个交易日，最近一两天的 QDII 使用最新已披露净值。
           </p>
 
           {series?.warnings.length ? (
