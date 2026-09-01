@@ -8,6 +8,7 @@ import {
 import { loadLocalEnvFileIfPresent } from './env.js'
 import { healthApp } from './routes/health.js'
 import { ledgerApp } from './routes/ledger.js'
+import { networthApp } from './routes/networth.js'
 import { portfolioApp } from './routes/portfolio.js'
 import { handleSessionRequest, sessionApp } from './routes/session.js'
 import type { AppBindings } from './types.js'
@@ -41,5 +42,8 @@ app.route('/api/health', healthApp)
 app.use('/api/ledger', requireAuthenticatedSession)
 app.use('/api/ledger/*', requireAuthenticatedSession)
 app.route('/api/ledger', ledgerApp)
+app.use('/api/networth', requireAuthenticatedSession)
+app.use('/api/networth/*', requireAuthenticatedSession)
+app.route('/api/networth', networthApp)
 
 export { app }

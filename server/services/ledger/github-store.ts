@@ -104,10 +104,47 @@ async function assertRepositoryReachable() {
 }
 
 /**
+ * The blob sha this process last wrote for each path.
+ *
+ * GitHub's read path is eventually consistent: a PUT can return 200 while a
+ * follow-up GET still serves the previous blob. Left alone, a user who adds an
+ * entry and immediately reloads may not see it. Remembering what we wrote lets
+ * a read detect that it got a stale copy and wait for the write to land.
+ */
+const lastWrittenSha = new Map<string, string>()
+
+const STALE_READ_RETRIES = 4
+const STALE_READ_DELAY_MS = 400
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
  * Reads a file and its blob sha in one call. Returns null when the file does not
  * exist yet, which lets callers create it on first write.
  */
 export async function readRepositoryFile(filePath: string) {
+  const expectedSha = lastWrittenSha.get(filePath)
+
+  for (let attempt = 0; ; attempt += 1) {
+    const result = await readRepositoryFileOnce(filePath)
+
+    // Only wait when we know a newer blob exists and this read predates it.
+    if (
+      !expectedSha ||
+      !result ||
+      result.sha === expectedSha ||
+      attempt >= STALE_READ_RETRIES
+    ) {
+      return result
+    }
+
+    await sleep(STALE_READ_DELAY_MS)
+  }
+}
+
+async function readRepositoryFileOnce(filePath: string) {
   const response = await requestGitHub(buildContentsPath(filePath))
 
   if (response.status === 404) {
@@ -224,7 +261,13 @@ export async function writeRepositoryFile(options: {
     content?: { sha?: string }
   }
 
+  const writtenSha = payload.content?.sha ?? ''
+
+  if (writtenSha) {
+    lastWrittenSha.set(options.path, writtenSha)
+  }
+
   return {
-    sha: payload.content?.sha ?? '',
+    sha: writtenSha,
   }
 }
