@@ -150,6 +150,41 @@ export function NetWorthPanel({
             </div>
           ) : null}
 
+          {series ? (
+            <div className="mt-4 flex flex-wrap gap-6">
+              <div>
+                <p className="m-0 text-[0.76rem] font-semibold uppercase tracking-[0.1em] text-muted">
+                  XIRR
+                </p>
+                <p
+                  className="m-0 text-[1.1rem] font-semibold text-ink"
+                  title="资金加权年化收益率，已剔除入金与消费的影响"
+                >
+                  {series.returns.xirr === null
+                    ? '数据不足'
+                    : `${(series.returns.xirr * 100).toFixed(1)}%`}
+                </p>
+              </div>
+              <div>
+                <p className="m-0 text-[0.76rem] font-semibold uppercase tracking-[0.1em] text-muted">
+                  TWR
+                </p>
+                <p
+                  className="m-0 text-[1.1rem] font-semibold text-ink"
+                  title="时间加权年化收益率，不受入金时点影响"
+                >
+                  {series.returns.twr === null
+                    ? '数据不足'
+                    : `${(series.returns.twr * 100).toFixed(1)}%`}
+                </p>
+              </div>
+              <p className="max-w-[26rem] self-center text-[0.78rem] leading-6 text-muted">
+                XIRR 覆盖整个净资产，依赖你定期用「余额对账」记录各账户实际余额；
+                长期不对账会让未记录的消费被算成收益。
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-4 flex flex-wrap gap-2">
             {RANGE_OPTIONS.map((option) => (
               <button

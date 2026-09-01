@@ -7,12 +7,18 @@ export type ValuationPoint = {
   totalUsd: number
 }
 
+export type ReturnSummary = {
+  twr: number | null
+  xirr: number | null
+}
+
 export type NetWorthSeries = {
   accounts: { currency: string; id: string; kind: string; name: string }[]
   asOf: string
   entryCount: number
   errors: string[]
   points: ValuationPoint[]
+  returns: ReturnSummary
   warnings: string[]
 }
 
