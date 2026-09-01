@@ -74,6 +74,9 @@ BETTER_AUTH_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 AUTH_ALLOWED_EMAILS=
+GITHUB_DATA_REPO=
+GITHUB_DATA_TOKEN=
+GITHUB_DATA_BRANCH=
 ```
 
 - `FMP_API_KEY`: FMP 服务端共享 key
@@ -83,6 +86,9 @@ AUTH_ALLOWED_EMAILS=
 - `GOOGLE_CLIENT_ID`: Google OAuth Web 应用 client id
 - `GOOGLE_CLIENT_SECRET`: Google OAuth Web 应用 client secret
 - `AUTH_ALLOWED_EMAILS`: 逗号分隔的白名单邮箱列表。所有环境必填；只有这些账号可以使用服务端共享 API key
+- `GITHUB_DATA_REPO`: 私有数据仓，格式 `owner/name`（如 `zhmushan/portune-data`）。存放 `ledger.csv` 等财务数据，**不可放在本公开仓**
+- `GITHUB_DATA_TOKEN`: 对上述数据仓有读写权限的 token。建议用 fine-grained PAT 且只授权该单仓
+- `GITHUB_DATA_BRANCH`: 数据仓分支，默认 `main`
 
 ## Google OAuth Setup
 

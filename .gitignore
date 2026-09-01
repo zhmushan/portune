@@ -27,3 +27,8 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Ledger data belongs in the private data repository, never in this public one.
+ledger.csv
+accounts.csv
+instruments.csv
