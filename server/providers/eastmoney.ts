@@ -52,9 +52,32 @@ export function parseNetWorthTrend(source: string): NavPoint[] {
   const start = match.index + match[0].length - 1
   let depth = 0
   let end = -1
+  let isInString = false
+  let isEscaped = false
 
+  // Bracket counting has to know about string literals: a fund's unitMoney note
+  // can contain "分红]备注", and a naive scan would cut the array there.
   for (let index = start; index < source.length; index += 1) {
     const character = source[index]
+
+    if (isEscaped) {
+      isEscaped = false
+      continue
+    }
+
+    if (character === '\\') {
+      isEscaped = true
+      continue
+    }
+
+    if (character === '"') {
+      isInString = !isInString
+      continue
+    }
+
+    if (isInString) {
+      continue
+    }
 
     if (character === '[') {
       depth += 1
@@ -95,7 +118,15 @@ export function parseNetWorthTrend(source: string): NavPoint[] {
 
     const { x, y } = item as { x?: unknown; y?: unknown }
 
-    if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(y)) {
+    // typeof NaN and typeof Infinity are both "number", and new Date(Infinity)
+    // throws a RangeError from toISOString() that would escape this function
+    // unwrapped. Both coordinates need the finite check.
+    if (
+      typeof x !== 'number' ||
+      typeof y !== 'number' ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
       return []
     }
 

@@ -59,6 +59,11 @@ function parseLine(line: string) {
 /**
  * Splits on newlines that sit outside quoted fields, so a quoted note spanning
  * lines stays a single record.
+ *
+ * Reports whether the final record ended mid-quote. A hand-typed unescaped
+ * quote (`bought 5" pipe`) flips the parity and would otherwise swallow every
+ * following line into one record — the next write would then serialize those
+ * rows away permanently.
  */
 function splitRecords(content: string) {
   const records: string[] = []
@@ -89,21 +94,41 @@ function splitRecords(content: string) {
     records.push(record)
   }
 
-  return records
+  return {
+    isUnterminated: isQuoted,
+    records,
+  }
+}
+
+export class CsvParseError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CsvParseError'
+  }
 }
 
 export function parseCsv(content: string) {
-  const records = splitRecords(content).filter((record) => record.trim())
+  const { isUnterminated, records } = splitRecords(content)
 
-  if (records.length === 0) {
+  if (isUnterminated) {
+    throw new CsvParseError(
+      'CSV ends inside an unterminated quoted field. A stray double quote would silently merge rows; fix the file before writing to it.',
+    )
+  }
+
+  const usableRecords = records.filter((record) => record.trim())
+
+  if (usableRecords.length === 0) {
     return {
       headers: [] as string[],
       rows: [] as Record<string, string>[],
     }
   }
 
-  const headers = parseLine(records[0] as string).map((header) => header.trim())
-  const rows = records.slice(1).map((record) => {
+  const headers = parseLine(usableRecords[0] as string).map((header) =>
+    header.trim(),
+  )
+  const rows = usableRecords.slice(1).map((record) => {
     const fields = parseLine(record)
 
     return Object.fromEntries(

@@ -4,6 +4,7 @@ import { fetchAuthSession } from './api/auth'
 import { analyzePortfolio } from './api/client'
 import { ApiError } from './api/http'
 import { AuthenticationPanel } from './features/auth/components/AuthenticationPanel'
+import { LedgerPanel } from './features/ledger/components/LedgerPanel'
 import type { AuthenticatedUser } from './features/auth/types'
 import { CopyPortfolioButton } from './features/portfolio/components/CopyPortfolioButton'
 import { DisplaySettingsPanel } from './features/portfolio/components/DisplaySettingsPanel'
@@ -881,6 +882,12 @@ export default function App() {
               </div>
             </div>
           </div>
+        </main>
+      ) : null}
+
+      {isWorkspaceReady ? (
+        <main className="mt-5">
+          <LedgerPanel />
         </main>
       ) : null}
     </div>

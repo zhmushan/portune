@@ -28,33 +28,60 @@ const LEDGER_HEADERS = [
 ]
 
 export function createEntryId() {
-  return randomBytes(4).toString('hex')
+  // 16 bytes, not 4: at 4 bytes two rows collide with ~1% probability by 10k
+  // entries, and a collision would make update/delete hit both rows.
+  return randomBytes(16).toString('hex')
 }
 
-function parseOptionalNumber(value: string) {
+function parseOptionalNumber(value: string, field: string, id: string) {
   if (!value.trim()) {
     return null
   }
 
   const parsed = Number(value)
 
-  return Number.isFinite(parsed) ? parsed : null
+  // Returning null here would write the field back as empty on the next save,
+  // silently erasing a real amount. Anything Number() rejects — "1,234.56",
+  // "¥100", a stray currency suffix — has to stop the read.
+  if (!Number.isFinite(parsed)) {
+    throw new LedgerStoreError(
+      `Entry ${id} has an unparseable ${field}: "${value}". Fix it in the data repository; refusing to read it as empty.`,
+      500,
+    )
+  }
+
+  return parsed
 }
 
 function formatOptionalNumber(value: number | null) {
-  return value === null ? '' : String(value)
+  if (value === null) {
+    return ''
+  }
+
+  // String(NaN) would write "NaN", which reads back as unparseable. Catch it at
+  // the boundary rather than persisting a value that cannot survive a round trip.
+  if (!Number.isFinite(value)) {
+    throw new LedgerStoreError(
+      `Refusing to write a non-finite number (${String(value)}) to the ledger.`,
+      500,
+    )
+  }
+
+  return String(value)
 }
 
 function toLedgerEntry(row: Record<string, string>): LedgerEntry {
+  const id = row.id ?? ''
+
   return {
     account: row.account ?? '',
-    amount: parseOptionalNumber(row.amount ?? ''),
+    amount: parseOptionalNumber(row.amount ?? '', 'amount', id),
     currency: (row.currency ?? '').toUpperCase(),
     date: row.date ?? '',
-    id: row.id ?? '',
+    id,
     note: row.note ?? '',
-    price: parseOptionalNumber(row.price ?? ''),
-    qty: parseOptionalNumber(row.qty ?? ''),
+    price: parseOptionalNumber(row.price ?? '', 'price', id),
+    qty: parseOptionalNumber(row.qty ?? '', 'qty', id),
     symbol: (row.symbol ?? '').toUpperCase(),
     type: (row.type ?? '') as LedgerEntryType,
   }
@@ -97,10 +124,29 @@ export async function readLedger() {
     }
   }
 
-  const { rows } = parseCsv(file.value)
+  const { headers, rows } = parseCsv(file.value)
+
+  // A column the app doesn't know about would be dropped by the next full-file
+  // write. Better to refuse than to quietly delete someone's added data.
+  const unknownHeaders = headers.filter(
+    (header) => header && !LEDGER_HEADERS.includes(header),
+  )
+
+  if (unknownHeaders.length > 0) {
+    throw new LedgerStoreError(
+      `ledger.csv has unrecognized columns (${unknownHeaders.join(', ')}) that a save would discard. Remove them or add support first.`,
+      500,
+    )
+  }
+
+  // Rows added by hand may have no id. Assigning one keeps them in the ledger —
+  // filtering them out would delete them on the next save.
+  const entries = rows
+    .filter((row) => Object.values(row).some((value) => value.trim()))
+    .map((row) => toLedgerEntry(row.id?.trim() ? row : { ...row, id: createEntryId() }))
 
   return {
-    entries: rows.filter((row) => row.id).map(toLedgerEntry),
+    entries,
     sha: file.sha,
   }
 }
@@ -194,6 +240,28 @@ async function mutateLedger(
   return sorted
 }
 
+/**
+ * Locates exactly one entry. Acting on an ambiguous id would silently rewrite or
+ * delete an unrelated transaction, so a duplicate is an error rather than a
+ * best-effort match.
+ */
+function findExactlyOne(entries: LedgerEntry[], id: string) {
+  const matches = entries.filter((entry) => entry.id === id)
+
+  if (matches.length === 0) {
+    throw new LedgerStoreError(`Ledger entry ${id} was not found.`, 404)
+  }
+
+  if (matches.length > 1) {
+    throw new LedgerStoreError(
+      `Ledger entry ${id} matches ${matches.length} rows. Give them distinct ids in the data repository before editing.`,
+      500,
+    )
+  }
+
+  return matches[0] as LedgerEntry
+}
+
 export async function appendLedgerEntry(entry: Omit<LedgerEntry, 'id'>) {
   const created: LedgerEntry = {
     ...entry,
@@ -215,11 +283,7 @@ export async function updateLedgerEntry(
   let updated: LedgerEntry | null = null
 
   await mutateLedger((entries) => {
-    const existing = entries.find((entry) => entry.id === id)
-
-    if (!existing) {
-      throw new LedgerStoreError(`Ledger entry ${id} was not found.`, 404)
-    }
+    const existing = findExactlyOne(entries, id)
 
     updated = {
       ...existing,
@@ -238,11 +302,7 @@ export async function updateLedgerEntry(
 
 export async function deleteLedgerEntry(id: string) {
   await mutateLedger((entries) => {
-    const existing = entries.find((entry) => entry.id === id)
-
-    if (!existing) {
-      throw new LedgerStoreError(`Ledger entry ${id} was not found.`, 404)
-    }
+    const existing = findExactlyOne(entries, id)
 
     return {
       entries: entries.filter((entry) => entry.id !== id),

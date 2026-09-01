@@ -71,6 +71,39 @@ async function readErrorMessage(response: Response, fallback: string) {
 }
 
 /**
+ * Distinguishes "the file isn't there yet" from "we cannot see this repository
+ * at all", which GitHub reports identically as 404.
+ */
+async function assertRepositoryReachable() {
+  const { branch, repository } = readRepositoryConfig()
+  const response = await requestGitHub(`/repos/${repository}`)
+
+  if (response.status === 404 || response.status === 401 || response.status === 403) {
+    throw new LedgerStoreError(
+      `Cannot access repository "${repository}". Check GITHUB_DATA_REPO and that GITHUB_DATA_TOKEN still grants it read/write access.`,
+      500,
+    )
+  }
+
+  if (!response.ok) {
+    throw new LedgerStoreError(
+      `Failed to verify repository "${repository}": ${await readErrorMessage(response, `HTTP ${response.status}`)}`,
+    )
+  }
+
+  const branchResponse = await requestGitHub(
+    `/repos/${repository}/branches/${encodeURIComponent(branch)}`,
+  )
+
+  if (branchResponse.status === 404) {
+    throw new LedgerStoreError(
+      `Branch "${branch}" does not exist in "${repository}". Check GITHUB_DATA_BRANCH.`,
+      500,
+    )
+  }
+}
+
+/**
  * Reads a file and its blob sha in one call. Returns null when the file does not
  * exist yet, which lets callers create it on first write.
  */
@@ -78,6 +111,12 @@ export async function readRepositoryFile(filePath: string) {
   const response = await requestGitHub(buildContentsPath(filePath))
 
   if (response.status === 404) {
+    // GitHub also answers 404 for a private repo the token cannot see, so a
+    // typo'd repo name, a revoked token, or a wrong branch would otherwise look
+    // like "no ledger yet" — and the next write would happily create a fresh
+    // one-row file. Confirm the repository itself is reachable first.
+    await assertRepositoryReachable()
+
     return null
   }
 
@@ -92,10 +131,29 @@ export async function readRepositoryFile(filePath: string) {
     content?: string
     encoding?: string
     sha?: string
+    size?: number
   }
 
   if (typeof payload.sha !== 'string' || typeof payload.content !== 'string') {
     throw new LedgerStoreError(`GitHub returned an unexpected payload for ${filePath}.`)
+  }
+
+  // Above 1 MB the Contents API returns an empty string with encoding "none"
+  // and a perfectly valid sha. Treating that as an empty file would let the
+  // next write replace the whole ledger with a single row — and the sha would
+  // be current, so the conflict guard could not catch it. Fail loudly instead.
+  if (payload.encoding !== 'base64') {
+    throw new LedgerStoreError(
+      `${filePath} was returned with encoding "${payload.encoding ?? 'unknown'}" instead of base64, which happens above 1 MB. Refusing to read it as empty.`,
+      500,
+    )
+  }
+
+  if (payload.content === '' && (payload.size ?? 0) > 0) {
+    throw new LedgerStoreError(
+      `${filePath} reports ${payload.size} bytes but returned no content. Refusing to treat it as empty.`,
+      500,
+    )
   }
 
   return {
@@ -134,11 +192,24 @@ export async function writeRepositoryFile(options: {
     },
   )
 
-  // GitHub documents 409 for conflicting writes and 422 for validation failures;
-  // a stale sha can surface as either, so both mean "re-read and replay".
+  // 409 is always a conflicting write. 422 covers several permanent validation
+  // failures too (missing branch, malformed path, oversized content), so only
+  // treat it as a conflict when GitHub says the sha is the problem — otherwise
+  // the real error would be hidden behind a misleading "reload and retry".
   if (response.status === 409 || response.status === 422) {
-    throw new LedgerConflictError(
-      `${options.path} changed since it was read. Reload and retry.`,
+    const message = await readErrorMessage(response, `HTTP ${response.status}`)
+    const isStaleSha =
+      response.status === 409 || /sha|does not match|is at/i.test(message)
+
+    if (isStaleSha) {
+      throw new LedgerConflictError(
+        `${options.path} changed since it was read. Reload and retry.`,
+      )
+    }
+
+    throw new LedgerStoreError(
+      `Failed to write ${options.path}: ${message}`,
+      500,
     )
   }
 
